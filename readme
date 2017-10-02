@@ -1,0 +1,116 @@
+
+本环境为：Spring + SpringMVC + Hibernate
+
+1. 创建Web Manven项目，加入Spring + SpringMVC + Hibernate所需依赖；
+2. 配置Spring与Hibernate
+	（1）创建Spring配置文件：
+		① 配置注解扫描；-----<context:component-scan base-package="com.bbx" />（这样不行，需要指定到Service层和dao层所在包路径）
+		② 加载属性文件；-----<context:property-placeholder location="classpath*:config.properties" />
+		③ 配置数据源DataSource；
+		④ 配置SessionFactory；
+		⑤ 配置事务；
+		⑥ 配置注解式配置事务；----<tx:annotation-driven transaction-manager="transactionManager" />
+	（2）在web.xml中集成Spring环境；
+		<listener>
+			<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+		</listener>
+	（3） 测试Spring与Hibernate整合是否成功：
+		① 测试测试SessionFactory
+		② 测试事物
+3. 集成SpringMVC
+	（1）在web.xml中配置SpringMVC的核心过滤器DispatcherServlet；
+	（2）创建SpringMVC配置文件；
+		① 配置自动扫描的包（注意要指定到Controller所在包路径）；
+		② 配置视图解析器；
+	（3）测试Spring + SpringMVC + Hibernate整合是否成功：
+		① 创建Controller类，编写处理请求方法；
+		② 创建请求页面；
+		③ 创建响应页面；
+	
+遇到的问题：
+1. 解决进行数据库操作时的警告：
+	WARN: Establishing SSL connection without server's identity....
+	mysql高版本建议不使用服务器身份验证的SSL连接。根据MySQL 5.5.45+，5.6.26+和5.7.6+的要求，
+	如果未设置显式选项，则必须默认建立SSL连接。 为了符合不使用SSL的现有应用程序，
+	将verifyServerCertificate属性设置为“false”。 您需要通过设置useSSL = false来明确禁用SSL，
+	或设置useSSL = true，并提供服务器证书验证的信任库。
+	
+	解决办法：在连接数据库url后加上   “&useSSL=false” 。
+
+2. 页面处理请求与Controller注解请求要利用Copy、Copy、Copy、Copy、Copy、Copy、Copy！！！
+	不要再发生一些响应请求与映射名不匹配问题！！！
+
+3. SpringMVC4+Hibernate4运行报错Could not obtain transaction-synchronized Session for current thread
+	解决办法：
+	<filter>
+		<filter-name>SpringOpenSessionInViewFilter</filter-name>
+		<filter-class>org.springframework.orm.hibernate4.support.OpenSessionInViewFilter</filter-class>
+	</filter>
+	<filter-mapping>
+		<filter-name>SpringOpenSessionInViewFilter</filter-name>
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
+
+4. 使用Spring的AOP功能出现错误：
+	spring AOP就是用aspectj来实现的，是依赖关系！AspectJ是动态代理的一种实现！
+	而spring默认使用的就是AspectJ来实现的动态代理，spring自己的AOP就是使用AspectJ来实现的！
+	当然你也可以使用其他的实现，如cglib!
+	解决办法：加入aspectj的jar包。
+
+5. 【Spring和SpringMVC】自动扫描注解类的冲突问题！也就是遇到的以下问题：
+	(使用hibernate4，在调用sessionFactory.getCurrentSession().save(entity)；进行保存操作时，方法执行成功，但是数据没有插入到数据库，控制台也不报错)
+
+	Spring MVC项目中通常会有二个配置文件，spring-mvc.xml和applicationContext.xml二个配置文件，通常会出现以下几个配置：
+	(1)<context:annotation-config /> 它的作用是隐式地向 Spring 容器注册
+		AutowiredAnnotationBeanPostProcessor、CommonAnnotationBeanPostProcessor、PersistenceAnnotationBeanPostProcessor、
+		RequiredAnnotationBeanPostProcessor这4个BeanPostProcessor。
+		其作用是如果你想在程序中使用注解，就必须先注册该注解对应的类，如下图所示：
+		依赖的类－注解： 
+			CommonAnnotationBeanPostProcessor @Resource 、@PostConstruct、@PreDestroy
+			PersistenceAnnotationBeanPostProcessor @PersistenceContext
+			AutowiredAnnotationBeanPostProcessor @Autowired
+			RequiredAnnotationBeanPostProcessor @Required
+		当然也可以自己进行注册：
+			<bean class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor "/>  
+			<bean class="org.springframework.beans.factory.annotation.RequiredAnnotationBeanPostProcessor"/>
+			
+	(2)<context:component-scan base-package="com.*" >
+		<context:component-scan/> 配置项不但启用了对类包进行扫描以实施注释驱动 Bean 定义的功能，
+		同时还启用了注释驱动自动注入的功能（即还隐式地在内部注册了AutowiredAnnotationBeanPostProcessor 
+		和 CommonAnnotationBeanPostProcessor），因此当使用 <context:component-scan/> 后，
+		就可以将 <context:annotation-config/> 移除了。
+		在这里有一个比较有意思的问题，就是扫描是否需要在二个配置文件都配置一遍(也就是出现的冲突问题)，我做了这么几种测试：
+		①只在applicationContext.xml中配置如下 
+			<context:component-scan base-package="com.login" /> 
+			启动正常，但是任何请求都不会被拦截，简而言之就是@Controller失效
+		②只在spring-mvc.xml中配置上述配置启动正常，请求也正常，但是事物失效，也就是不能进行回滚
+		③在applicationContext.xml和spring-servlet.xml中都配置上述信息 
+			启动正常，请求正常，也是事物失效，不能进行回滚
+		④在applicationContext.xml中配置如下<context:component-scan base-package="com.login" />，在spring-servlet.xml中配置如下 
+			<context:component-scan base-package="com.sohu.login.web" />此时启动正常，请求正常，事物也正常了。
+	结论：
+		在spring-servlet.xml中只需要扫描所有带@Controller注解的类，
+		在applicationContext中可以扫描所有其他带有注解的类（也可以过滤掉带@Controller注解的类）。
+		另外可以在利用context:include-filter和context:exclude-filter 过滤不需要扫描的注解。
+
+		<mvc:annotation-driven />它会自动注册DefaultAnnotationHandlerMapping 与AnnotationMethodHandlerAdapter
+	
+	解决办法：定位到准确要扫描的包路径！
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

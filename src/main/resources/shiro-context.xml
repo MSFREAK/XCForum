@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+	   http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.3.xsd"
+	default-lazy-init="true">
+
+	<!-- 通过一个 ShiroFilter 入口来拦截需要安全控制的 URL -->
+	<bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+		<!-- 指定安全管理器 -->
+		<property name="securityManager" ref="securityManager" />
+		<!-- 如果没有认证将要跳转的登陆地址，http可访问的url，如果不在表单认证，过虑器FormAuthenticationFilter中指定此地址就为身份认证地址 -->
+		<!-- loginUrl认证提交地址，如果没有通过认证将会请求此地址进行认证，请求地址将由formAuthenticationFilter进行表单认证 -->
+		<property name="loginUrl" value="/login.jspx" />
+		<!-- 认证成功后自动转发到value里面的地址 -->
+		<!-- 当不配置这个参数的时候，Shiro会自动请求上一次你访问的地址 -->
+		<property name="successUrl" value="/" />
+		<!-- shiro拦截器配置 -->
+		<property name="filters">
+			<util:map>
+				<entry key="authc" value-ref="authcFilter" />
+				<entry key="user" value-ref="userFilter" />
+				<entry key="logout" value-ref="logoutFilter" />
+			</util:map>
+		</property>
+		<!-- anon匿名 authc登录认证 user用户已登录 logout退出filter -->
+		<!-- 真正的filter，也是过滤链，从上向下顺序执行，一般都将/**放在最下边 -->
+		<property name="filterChainDefinitions">
+			<value>
+				*.jspx = anon
+				*.jhtml = anon
+				/admin/login.do = authc
+				<!-- 所有的URL都可以匿名访问 -->
+				/** = anon
+			</value>
+		</property>
+	</bean>
+
+	<!-- 安全管理器 -->
+	<bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+		<property name="cacheManager" ref="shiroEhcacheManager" />
+		<property name="rememberMeManager" ref="rememberMeManager" />
+		<property name="realm" ref="authorizingRealm" />
+	</bean>
+	<bean id="shiroEhcacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+		<!-- <property name="cacheManagerConfigFile"> <value>classpath:ehcache-shiro.xml</value> 
+			</property> -->
+		<property name="cacheManager">
+			<ref local="cacheManager" />
+		</property>
+	</bean>
+
+	<bean id="rememberMeCookie" class="org.apache.shiro.web.servlet.SimpleCookie">
+		<constructor-arg value="rememberMe" />
+		<property name="httpOnly" value="true" />
+		<property name="maxAge" value="31536000" /><!-- 365天 -->
+	</bean>
+
+	<!-- rememberMe管理器 -->
+	<bean id="rememberMeManager" class="org.apache.shiro.web.mgt.CookieRememberMeManager">
+		<property name="cipherKey"
+			value="#{T(org.apache.shiro.codec.Base64).decode('4AvVhmFLUs0KTA3Kprsdag==')}" />
+		<property name="cookie" ref="rememberMeCookie" />
+	</bean>
+	<!-- Enable Shiro Annotations for Spring-configured beans. Only run after -->
+	<!-- the lifecycleBeanProcessor has run: -->
+	<!-- Shiro 生命周期处理器 -->
+	<bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor" />
+</beans>
